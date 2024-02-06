@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [
+  "bin",
+  "initialiser",
+  "manager",
+  "builder",
+  "runner",
+  "github",
+  "util",
+  "config"
+]
+
+[workspace.dependencies]
+anyhow = { version = "*", features = ["backtrace"] }
+thiserror = "*"
+clap = { version = "*", features = ["derive"] }
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+toml = "*"
+log = "*"
+fern = "*"
+chrono = "*"
+nix = { version = "*", features = ["fs", "mount"] }
+reqwest = { version = "*", default-features = false, features = ["json", "blocking", "rustls-tls"] }
+rand = "*"
+mockall = "*"
+cfg-if = "*"
+camino = { version = "*", features = ["serde1"] }
+lazy_static = "*"
+
+[profile.dev]
+split-debuginfo = "unpacked"
+
+[profile.release]
+strip = true  # Automatically strip symbols from the binary.
+opt-level = "z"  # Optimize for size.
+lto = true

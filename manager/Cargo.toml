@@ -1,0 +1,26 @@
+[package]
+name = "manager"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+log.workspace = true
+serde_json.workspace = true
+rand.workspace = true
+camino.workspace = true
+signal-hook = "*"
+
+[dependencies.github]
+path = "../github"
+
+[dependencies.config]
+path = "../config"
+
+[dependencies.util]
+path = "../util"
+
+[dev-dependencies]
+mockall.workspace = true

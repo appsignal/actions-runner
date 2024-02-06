@@ -1,0 +1,14 @@
+network_interface="eth0"
+run_path="/srv"
+github_pat="ghp_1234567890"
+github_org="matsimitsu"
+
+[[roles]]
+name="your-project"
+rootfs_image="/home/runner/containers/your-project-1.0.0/rootfs.img"
+kernel_image="/home/runner/containers/your-project-1.0.0/kernel.bin"
+cpus=4
+memory_size=1024
+cache_size=1024
+overlay_size=1024
+instance_count=4
