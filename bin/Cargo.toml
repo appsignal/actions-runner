@@ -1,0 +1,30 @@
+[package]
+name = "actions-runner"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+clap.workspace = true
+fern.workspace = true
+chrono.workspace = true
+log.workspace = true
+camino.workspace = true
+
+[dependencies.manager]
+path = "../manager"
+
+[dependencies.builder]
+path = "../builder"
+
+[dependencies.initialiser]
+path = "../initialiser"
+
+[dependencies.runner]
+path = "../runner"
+
+[dependencies.config]
+path = "../config"

@@ -1,0 +1,16 @@
+network_interface="enp0s31f6"
+run_path="/srv"
+github_pat="ghp_1234567890"
+github_org="matsimitsu"
+
+[[roles]]
+name="your-project"
+rootfs_image="/home/runner/containers/your-project-2024-01-20/rootfs.img"
+kernel_image="/home/runner/containers/your-project-2024-01-20/vmlinux.bin"
+cpus=4
+memory_size=1
+cache_size=1
+overlay_size=1
+instance_count=4
+cache_paths=["docker:/var/lib/docker"]
+labels=["your-project", "your-project-2024-01-20"]
