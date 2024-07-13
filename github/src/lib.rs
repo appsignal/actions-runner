@@ -1,5 +1,5 @@
 use anyhow::Result;
-use reqwest;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -27,7 +27,7 @@ impl GitHub {
     pub fn registration_token(&self) -> Result<String> {
         let registration_token_result = self
             .client
-            .post(&format!(
+            .post(format!(
                 "https://api.github.com/orgs/{}/actions/runners/registration-token",
                 self.org
             ))
@@ -42,7 +42,7 @@ impl GitHub {
 
     pub fn remove_runner(&self, runner_name: &str) -> Result<()> {
         self.client
-            .post(&format!(
+            .post(format!(
                 "https://api.github.com/orgs/{}/actions/runners/remove-token",
                 self.org
             ))

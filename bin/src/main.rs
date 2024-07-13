@@ -4,7 +4,7 @@ use camino::Utf8PathBuf;
 use chrono::Utc;
 use clap::{Parser, Subcommand};
 use config::manager::ManagerConfig;
-use log;
+
 use manager::Manager;
 use std::env;
 use std::process::ExitCode;
@@ -107,7 +107,7 @@ fn manage(args: ManageArgs) -> Result<()> {
     setup_logger(args.log_level.unwrap_or(log::LevelFilter::Info)).expect("Could not setup logger");
 
     let config =
-        ManagerConfig::from_file(&args.config.clone().into()).expect("Could not load config");
+        ManagerConfig::from_file(&args.config.clone()).expect("Could not load config");
     let mut manager = Manager::new(config);
 
     match args.debug_role {

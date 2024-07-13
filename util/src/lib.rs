@@ -1,7 +1,7 @@
 use cfg_if::cfg_if;
 #[allow(unused)]
 use lazy_static::lazy_static;
-use log;
+
 #[allow(unused)]
 use std::sync::atomic::{AtomicBool, Ordering};
 #[allow(unused)]

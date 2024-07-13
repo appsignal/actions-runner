@@ -19,10 +19,10 @@ pub fn setup_cache(cache_str: &str) -> Result<(), CacheError> {
     mount::mount_ext4("/dev/vdb", CACHE_PATH)?;
     set_permissions(CACHE_PATH, Permissions::from_mode(0o777))?;
 
-    let cache_links = cache_str.split(",");
+    let cache_links = cache_str.split(',');
     for cache_link in cache_links {
         let cache_link = cache_link.trim();
-        let cache_parts: Vec<&str> = cache_link.split(":").collect();
+        let cache_parts: Vec<&str> = cache_link.split(':').collect();
         if cache_parts.len() != 2 {
             return Err(CacheError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -33,7 +33,7 @@ pub fn setup_cache(cache_str: &str) -> Result<(), CacheError> {
         let cache_path = cache_parts[1];
 
         fs::mkdir_p(&cache_root)?;
-        symlink(&cache_root, &cache_path)?;
+        symlink(&cache_root, cache_path)?;
     }
 
     Ok(())

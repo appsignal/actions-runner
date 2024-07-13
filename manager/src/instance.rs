@@ -49,7 +49,7 @@ impl Instance {
         role: &Role,
         idx: u8,
     ) -> Self {
-        let instance_dir: Utf8PathBuf = work_dir.join(&role.slug()).join(format!("{}", idx));
+        let instance_dir: Utf8PathBuf = work_dir.join(role.slug()).join(format!("{}", idx));
         let cache = Disk::new(&instance_dir, "cache", role.cache_size, DiskFormat::Ext4);
 
         Self {
@@ -157,29 +157,28 @@ impl Instance {
             boot_args: self.boot_args()?,
         };
 
-        let mut drives = Vec::new();
-        drives.push(Drive {
-            drive_id: "rootfs".to_string(),
-            path_on_host: self.work_dir.join("rootfs.ext4"),
-            is_root_device: true,
-            is_read_only: false,
-            cache_type: None,
-        });
+        let drives = vec![
+            Drive {
+                drive_id: "rootfs".to_string(),
+                path_on_host: self.work_dir.join("rootfs.ext4"),
+                is_root_device: true,
+                is_read_only: false,
+                cache_type: None,
+            },
+            Drive {
+                drive_id: "cache".to_string(),
+                path_on_host: self.cache.path_with_filename(),
+                is_root_device: false,
+                is_read_only: false,
+                cache_type: None,
+            },
+        ];
 
-        drives.push(Drive {
-            drive_id: "cache".to_string(),
-            path_on_host: self.cache.path_with_filename(),
-            is_root_device: false,
-            is_read_only: false,
-            cache_type: None,
-        });
-
-        let mut network_interfaces = Vec::new();
-        network_interfaces.push(NetworkInterface {
+        let network_interfaces = vec![NetworkInterface {
             iface_id: "eth0".to_string(),
             guest_mac: self.network_allocation.guest_mac.clone(),
             host_dev_name: self.network_allocation.tap_name.clone(),
-        });
+        }];
 
         let machine_config = MachineConfig {
             vcpu_count: self.cpus,
@@ -201,8 +200,8 @@ impl Instance {
             self.rootfs_image,
             self.work_dir.join("rootfs.ext4"),
         );
-        let _ = rm_rf(&self.work_dir.join("rootfs.ext4"));
-        copy_sparse(&self.rootfs_image, &self.work_dir.join("rootfs.ext4"))?;
+        let _ = rm_rf(self.work_dir.join("rootfs.ext4"));
+        copy_sparse(&self.rootfs_image, self.work_dir.join("rootfs.ext4"))?;
 
         debug!(
             "{} Generate config: '{}'",

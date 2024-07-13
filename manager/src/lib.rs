@@ -24,7 +24,7 @@ pub struct Manager {
 
 impl Manager {
     pub fn new(config: ManagerConfig) -> Self {
-        let mut signals = Signals::new(&[SIGINT]).unwrap();
+        let mut signals = Signals::new([SIGINT]).unwrap();
         let shutdown = Arc::new(AtomicBool::new(false));
         let cloned_shutdown = shutdown.clone();
 
@@ -59,7 +59,7 @@ impl Manager {
                     network_allocation,
                     github.clone(),
                     &self.config.run_path,
-                    &role,
+                    role,
                     idx,
                 );
                 instance.setup()?;

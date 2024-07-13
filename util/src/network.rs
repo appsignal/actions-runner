@@ -27,7 +27,7 @@ pub fn ip_to_mac(ip: &Ipv4Addr) -> String {
 pub fn mac_to_ip(mac: &str) -> Result<Ipv4Addr, MacToIpError> {
     let octets = mac
         .replace("06:00:", "")
-        .split(":")
+        .split(':')
         .map(|octet| u8::from_str_radix(octet, 16))
         .collect::<Result<Vec<u8>, ParseIntError>>()
         .map_err(|_| MacToIpError::NoIpInMac(mac.to_string()))?;

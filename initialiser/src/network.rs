@@ -1,6 +1,6 @@
 use config::{NETWORK_MAGIC_MAC_START, NETWORK_MASK_SHORT};
 use serde::Deserialize;
-use serde_json;
+
 use std::{fs::write, net::Ipv4Addr, process::Command};
 use thiserror::Error;
 use util::{exec, network::mac_to_ip};
@@ -53,7 +53,7 @@ pub fn get_magic_address() -> Result<NetworkAddress, NetworkError> {
             return Ok(interface);
         }
     }
-    Err(NetworkError::NoInterfaceFound.into())
+    Err(NetworkError::NoInterfaceFound)
 }
 
 pub fn setup_network() -> Result<Option<NetworkInterface>, NetworkError> {
@@ -72,7 +72,7 @@ pub fn setup_network() -> Result<Option<NetworkInterface>, NetworkError> {
     exec(Command::new("ip").args([
         "addr",
         "add",
-        &format!("{}/{}", own_ip.to_string(), NETWORK_MASK_SHORT),
+        &format!("{}/{}", own_ip, NETWORK_MASK_SHORT),
         "dev",
         &magic_address.ifname,
     ]))?;

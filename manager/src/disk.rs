@@ -35,7 +35,7 @@ impl Disk {
     }
 
     pub fn path_with_filename(&self) -> Utf8PathBuf {
-        self.path.join(&self.filename())
+        self.path.join(self.filename())
     }
 
     pub fn setup(&self) -> Result<(), std::io::Error> {
@@ -46,7 +46,7 @@ impl Disk {
 
     pub fn setup_ext4(&self) -> Result<(), std::io::Error> {
         fs::dd(self.path_with_filename(), self.size_in_megabytes())?;
-        fs::mkfs_ext4(&self.path_with_filename())?;
+        fs::mkfs_ext4(self.path_with_filename())?;
         Ok(())
     }
 }

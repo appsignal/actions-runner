@@ -76,7 +76,7 @@ impl Initialiser {
                 Ok(github_runner_labels),
             ) => {
                 debug!("Copy self to actions-runner");
-                copy(&self.own_path, &Utf8PathBuf::from("/sbin/actions-run"))?;
+                copy(&self.own_path, Utf8PathBuf::from("/sbin/actions-run"))?;
 
                 debug!("Set runner init script");
                 service::setup_service(

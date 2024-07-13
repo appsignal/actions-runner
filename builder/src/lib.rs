@@ -48,7 +48,7 @@ impl Builder {
         let own_path: Utf8PathBuf = env::current_exe()?.try_into()?;
 
         Ok(Self {
-            own_path: own_path.into(),
+            own_path,
             source_path: [&current_dir, source_path].iter().collect(),
             output_path: [&current_dir, output_path].iter().collect(),
             size_gb: size_gb.unwrap_or(DEFAULT_IMAGE_SIZE_GB),
@@ -100,7 +100,7 @@ impl Builder {
             &self.own_path,
             self.mount_path.join("sbin/actions-init")
         );
-        fs::copy_sparse(&self.own_path, &self.mount_path.join("sbin/actions-init"))?;
+        fs::copy_sparse(&self.own_path, self.mount_path.join("sbin/actions-init"))?;
 
         debug!("Unmounting the image from: '{}'", &self.mount_path);
         // Unmount the image
