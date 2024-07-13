@@ -13,5 +13,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SRC_DIR: "bin"
+          TOOLCHAIN_VERSION: "1.74.0"
         with:
           RUSTTARGET: x86_64-unknown-linux-musl
