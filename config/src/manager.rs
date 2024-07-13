@@ -24,6 +24,10 @@ const fn _default_overlay_size() -> u32 {
     10 // 10GB
 }
 
+const fn _default_max_cache_pct() -> u8 {
+    90
+}
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct Role {
     pub name: String,
@@ -38,6 +42,8 @@ pub struct Role {
     pub instance_count: u8,
     #[serde(default)]
     pub cache_paths: Vec<Utf8PathBuf>,
+    #[serde(default = "_default_max_cache_pct")]
+    pub max_cache_pct: u8,
     #[serde(default)]
     pub labels: Vec<String>,
 }

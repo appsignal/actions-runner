@@ -34,6 +34,7 @@ pub struct Instance {
     memory_size: u32,
     cache_paths: Vec<Utf8PathBuf>,
     cache: Disk,
+    max_cache_pct: u8,
     idx: u8,
     role: String,
     github: GitHub,
@@ -62,6 +63,7 @@ impl Instance {
             memory_size: role.memory_size,
             cache_paths: role.cache_paths.clone(),
             role: role.slug(),
+            max_cache_pct: role.max_cache_pct,
             labels: role.labels.clone(),
             github,
             cache,
@@ -203,6 +205,8 @@ impl Instance {
         let _ = rm_rf(self.work_dir.join("rootfs.ext4"));
         copy_sparse(&self.rootfs_image, self.work_dir.join("rootfs.ext4"))?;
 
+        self.try_clear_cache()?;
+
         debug!(
             "{} Generate config: '{}'",
             self.log_prefix(),
@@ -223,6 +227,20 @@ impl Instance {
 
     pub fn reset(&mut self) {
         self.child = None;
+    }
+
+    pub fn try_clear_cache(&mut self) -> Result<()> {
+        let usage_pct = self.cache.usage_pct()?;
+        if usage_pct > self.max_cache_pct {
+            info!(
+                "Cache disk is over {}% ({}%), clearing cache",
+                self.max_cache_pct, usage_pct
+            );
+
+            self.cache.destroy()?;
+            self.cache.setup()?;
+        }
+        Ok(())
     }
 
     pub fn stop(&mut self) -> Result<()> {
@@ -303,6 +321,7 @@ mod tests {
             cpus: 1,
             memory_size: 1,
             cache_size: 1,
+            max_cache_pct: 90,
             overlay_size: 1,
             instance_count: 1,
             cache_paths: Vec::new(),

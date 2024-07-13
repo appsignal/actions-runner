@@ -54,6 +54,29 @@ pub fn dd(path: impl AsRef<Utf8Path>, size_in_mb: u64) -> std::io::Result<()> {
     Ok(())
 }
 
+pub fn du(path: impl AsRef<Utf8Path>) -> std::io::Result<u64> {
+    let path = path.as_ref();
+
+    let du_output = exec(Command::new("du").args([&path.as_str()]))
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    let size = du_output
+        .split_whitespace()
+        .next()
+        .ok_or(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Couldn not split '{:?}' into number and rest", du_output),
+        ))?;
+
+    size.parse().map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Could not parse '{:?}' to number: {}", size, e),
+        )
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

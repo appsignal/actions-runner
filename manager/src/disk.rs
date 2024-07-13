@@ -28,6 +28,10 @@ impl Disk {
         self.size as u64 * 1024
     }
 
+    pub fn size_in_kilobytes(&self) -> u64 {
+        self.size_in_megabytes() * 1024
+    }
+
     pub fn filename(&self) -> Utf8PathBuf {
         match self.format {
             DiskFormat::Ext4 => Utf8PathBuf::from(format!("{}.ext4", &self.name)),
@@ -44,9 +48,22 @@ impl Disk {
         }
     }
 
+    pub fn usage_on_disk(&self) -> Result<u64, std::io::Error> {
+        fs::du(self.path_with_filename())
+    }
+
     pub fn setup_ext4(&self) -> Result<(), std::io::Error> {
         fs::dd(self.path_with_filename(), self.size_in_megabytes())?;
         fs::mkfs_ext4(self.path_with_filename())?;
         Ok(())
+    }
+
+    pub fn destroy(&self) -> Result<(), std::io::Error> {
+        fs::rm_rf(self.path_with_filename())?;
+        Ok(())
+    }
+
+    pub fn usage_pct(&self) -> Result<u8, std::io::Error> {
+        Ok((self.usage_on_disk()? * 100 / self.size_in_kilobytes()) as u8)
     }
 }
