@@ -5,8 +5,14 @@ use std::process::Command;
 use util::{exec, exec_spawn};
 
 pub fn build_image(source_path: &Utf8PathBuf) -> Result<String, BuildError> {
-    let output =
-        exec(Command::new("docker").args(["build", "-q", "--file", source_path.as_str(), "."]))?;
+    let output = exec(Command::new("docker").args([
+        "build",
+        "-q",
+        "--network=host",
+        "--file",
+        source_path.as_str(),
+        ".",
+    ]))?;
 
     let trimmed_line = output
         .stdout
