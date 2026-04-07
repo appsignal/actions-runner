@@ -14,7 +14,7 @@ use log::*;
 use rand::distributions::{Alphanumeric, DistString};
 use serde_json;
 use std::{fs, process::Command};
-use util::fs::{copy_sparse, rm_rf};
+use util::fs::{copy_sparse, resize2fs, rm_rf, truncate};
 
 pub enum InstanceState {
     NotStarted,
@@ -34,6 +34,7 @@ pub struct Instance {
     memory_size: u32,
     cache_paths: Vec<Utf8PathBuf>,
     cache: Disk,
+    overlay_size: u32,
     max_cache_pct: u8,
     idx: u8,
     role: String,
@@ -63,6 +64,7 @@ impl Instance {
             memory_size: role.memory_size,
             cache_paths: role.cache_paths.clone(),
             role: role.slug(),
+            overlay_size: role.overlay_size,
             max_cache_pct: role.max_cache_pct,
             labels: role.labels.clone(),
             github,
@@ -202,8 +204,11 @@ impl Instance {
             self.rootfs_image,
             self.work_dir.join("rootfs.ext4"),
         );
-        let _ = rm_rf(self.work_dir.join("rootfs.ext4"));
-        copy_sparse(&self.rootfs_image, self.work_dir.join("rootfs.ext4"))?;
+        let rootfs_path = self.work_dir.join("rootfs.ext4");
+        let _ = rm_rf(&rootfs_path);
+        copy_sparse(&self.rootfs_image, &rootfs_path)?;
+        truncate(&rootfs_path, self.overlay_size)?;
+        resize2fs(&rootfs_path)?;
 
         self.try_clear_cache()?;
 

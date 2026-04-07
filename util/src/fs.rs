@@ -54,6 +54,24 @@ pub fn dd(path: impl AsRef<Utf8Path>, size_in_mb: u64) -> std::io::Result<()> {
     Ok(())
 }
 
+pub fn truncate(path: impl AsRef<Utf8Path>, size_in_gb: u32) -> std::io::Result<()> {
+    let path = path.as_ref();
+
+    exec(Command::new("truncate").args(["-s", &format!("{}G", size_in_gb), path.as_str()]))
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    Ok(())
+}
+
+pub fn resize2fs(path: impl AsRef<Utf8Path>) -> std::io::Result<()> {
+    let path = path.as_ref();
+
+    exec(Command::new("resize2fs").arg(path.as_str()))
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    Ok(())
+}
+
 pub fn du(path: impl AsRef<Utf8Path>) -> std::io::Result<u64> {
     let path = path.as_ref();
 
