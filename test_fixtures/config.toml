@@ -1,14 +1,18 @@
-network_interface="eth0"
-run_path="/srv"
-github_pat="ghp_1234567890"
-github_org="matsimitsu"
+network_interface = "eth0"
+run_path = "/srv/runners"
+github_pat = "ghp_1234567890"
+github_org = "matsimitsu"
+
+[lvm]
+volume_group = "runners"
+thin_pool = "pool"
 
 [[roles]]
-name="your-project"
-rootfs_image="/home/runner/containers/your-project-1.0.0/rootfs.img"
-kernel_image="/home/runner/containers/your-project-1.0.0/kernel.bin"
-cpus=4
-memory_size=1024
-cache_size=1024
-overlay_size=1024
-instance_count=4
+name = "default"
+rootfs_image = "/var/lib/runners/images/ubuntu-22.04-runner.img"
+kernel_image = "/var/lib/runners/kernels/vmlinux-5.10"
+cpus = 4
+memory_size = 4
+cache_size = 20
+instance_count = 4
+labels = ["ubuntu-22.04"]

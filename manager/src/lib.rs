@@ -1,142 +1,92 @@
-use crate::{
-    instance::{Instance, InstanceState},
-    network::{Forwarding, NetworkAllocation},
-};
 use anyhow::Result;
 use config::manager::ManagerConfig;
-use github::GitHub;
-use log::*;
-use signal_hook::{consts::SIGINT, iterator::Signals};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use tracing::{error, info, instrument, warn};
 
 pub mod disk;
+pub mod inject;
 pub mod instance;
+pub mod lvm;
 pub mod network;
+pub mod slot;
+
+use network::Forwarding;
 
 pub struct Manager {
     pub config: ManagerConfig,
-    pub instances: Vec<Instance>,
-    pub shutdown: Arc<AtomicBool>,
 }
 
 impl Manager {
     pub fn new(config: ManagerConfig) -> Self {
-        let mut signals = Signals::new([SIGINT]).unwrap();
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let cloned_shutdown = shutdown.clone();
-
-        thread::spawn(move || {
-            for sig in signals.forever() {
-                info!("Received signal {:?}", sig);
-                shutdown.store(true, Ordering::Relaxed);
-            }
-        });
-
-        Self {
-            config,
-            instances: Vec::new(),
-            shutdown: cloned_shutdown,
-        }
+        Self { config }
     }
 
-    pub fn setup(&mut self) -> Result<()> {
-        let network_forwarding = Forwarding::new(&self.config.network_interface);
-        network_forwarding.setup()?;
+    /// Run the manager: set up forwarding, reconcile LVM, then spawn one process per slot.
+    #[instrument(skip(self))]
+    pub fn run(&self) -> Result<()> {
+        info!("starting manager");
 
-        let github = GitHub::new(&self.config.github_org, &self.config.github_pat);
+        // Set up IP forwarding
+        let forwarding = Forwarding::new(&self.config.network_interface);
+        forwarding.setup()?;
 
-        for role in &self.config.roles {
-            for _ in 0..role.instance_count {
-                let idx = self.instances.len() as u8 + 1;
-
-                let network_allocation =
-                    NetworkAllocation::new(&self.config.network_interface, idx);
-
-                let mut instance = Instance::new(
-                    network_allocation,
-                    github.clone(),
-                    &self.config.run_path,
-                    role,
-                    idx,
-                );
-                instance.setup()?;
-                self.instances.push(instance);
-            }
+        // Reconcile LVM state
+        {
+            let _span = tracing::info_span!("startup.reconcile").entered();
+            info!("reconciling LVM state");
+            lvm::reconcile(&self.config)?;
         }
-        Ok(())
-    }
 
-    pub fn run(&mut self) -> Result<()> {
-        loop {
-            if self.shutdown.load(Ordering::Relaxed) {
-                info!("Shutting down.");
-                for instance in &mut self.instances {
-                    info!("{} Stopping instance", instance.log_prefix());
+        let config = Arc::new(self.config.clone());
+        let mut handles = Vec::new();
 
-                    if let Err(e) = instance.stop() {
-                        error!("{} Failed to stop instance: {}", instance.log_prefix(), e);
-                    }
-                    let _ = instance.cleanup();
-                }
-                break;
-            }
+        // Spawn one thread per slot
+        for role in &config.roles {
+            for idx in 0..role.instance_count as usize {
+                let config_clone = Arc::clone(&config);
+                let role_clone = role.clone();
 
-            for instance in &mut self.instances {
-                match instance.state() {
-                    InstanceState::Running => (),
-                    InstanceState::NotStarted | InstanceState::NotRunning => {
-                        info!("{} Starting instance", instance.log_prefix());
-                        if let Err(e) = instance.start() {
-                            error!("{} Failed to start instance: {}", instance.log_prefix(), e);
+                info!(role = %role.name, idx, "spawning slot thread");
+
+                let handle = thread::Builder::new()
+                    .name(format!("slot-{}-{}", role.slug(), idx))
+                    .spawn(move || {
+                        if let Err(e) = slot::run_slot(config_clone, &role_clone, idx) {
+                            error!(role = %role_clone.name, idx, error = %e, "slot thread exited with error");
                         }
-                    }
-                    InstanceState::Errorred => {
-                        error!("{} Instance has errored.", instance.log_prefix());
-                        thread::sleep(Duration::from_secs(20));
-                        instance.reset();
-                    }
-                }
+                    })?;
+
+                handles.push(handle);
             }
-            thread::sleep(Duration::from_secs(1));
         }
 
+        info!(slots = handles.len(), "all slot threads started");
+
+        // Install SIGINT/SIGTERM handler
+        setup_signal_handler()?;
+
+        // Join all slot threads (they run forever unless killed)
+        for handle in handles {
+            if let Err(e) = handle.join() {
+                warn!("slot thread panicked: {:?}", e);
+            }
+        }
+
+        info!("manager shutting down");
         Ok(())
     }
+}
 
-    pub fn debug(&mut self, role: &str, idx: u8) -> Result<()> {
-        let network_forwarding = Forwarding::new(&self.config.network_interface);
-        let network_allocation = NetworkAllocation::new(&self.config.network_interface, idx);
-        let github = GitHub::new(&self.config.github_org, &self.config.github_pat);
-        let mut role = self
-            .config
-            .roles
-            .iter()
-            .find(|r| r.name == role)
-            .expect("Could not find role.")
-            .clone();
+fn setup_signal_handler() -> Result<()> {
+    use nix::sys::signal::{sigaction, SaFlags, SigAction, SigHandler, SigSet, Signal};
 
-        // Set output to console
-        role.kernel_cmdline = match role.kernel_cmdline {
-            Some(ref cmdline) => Some(format!("console=ttyS0 {}", cmdline)),
-            None => Some("console=ttyS0".to_string()),
-        };
-
-        let mut instance = Instance::new(
-            network_allocation,
-            github,
-            &self.config.run_path,
-            &role,
-            idx,
-        );
-        network_forwarding.setup()?;
-        instance.setup()?;
-
-        instance.run_once()?;
-
-        instance.cleanup()?;
-        Ok(())
+    // Install a no-op handler for SIGTERM and SIGINT so the process can shut down
+    // gracefully. Slot processes receive the signal via their own process group.
+    let action = SigAction::new(SigHandler::SigIgn, SaFlags::empty(), SigSet::empty());
+    unsafe {
+        sigaction(Signal::SIGTERM, &action)?;
+        sigaction(Signal::SIGINT, &action)?;
     }
+    Ok(())
 }

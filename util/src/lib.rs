@@ -1,16 +1,21 @@
-use cfg_if::cfg_if;
-#[allow(unused)]
-use lazy_static::lazy_static;
-
-#[allow(unused)]
+#[cfg(any(test, feature = "testing"))]
 use std::sync::atomic::{AtomicBool, Ordering};
-#[allow(unused)]
+#[allow(unused_imports)]
 use std::sync::Mutex;
 use std::time::Instant;
 
 pub mod fs;
 pub mod mount;
 pub mod network;
+
+pub fn hostname() -> String {
+    nix::unistd::gethostname()
+        .ok()
+        .and_then(|h: std::ffi::OsString| h.into_string().ok())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+pub static MTX: Mutex<()> = Mutex::new(());
 
 #[derive(Debug)]
 pub struct CommandResult {
@@ -93,7 +98,7 @@ pub mod inner {
         }
 
         let duration = start.elapsed();
-        log::trace!("Command {:?} executed in {}ms", cmd, duration.as_millis());
+        tracing::trace!(cmd = ?cmd, duration_ms = duration.as_millis(), "command executed");
 
         Ok(output)
     }
@@ -118,45 +123,33 @@ pub static USE_MOCKS: AtomicBool = AtomicBool::new(true);
 pub fn exec(
     cmd: &mut std::process::Command,
 ) -> Result<std::process::Output, CommandExecutionError> {
-    log::trace!(
-        "Executing command {:?} with args {:?}",
-        cmd.get_program(),
-        cmd.get_args()
+    tracing::trace!(
+        program = ?cmd.get_program(),
+        args = ?cmd.get_args().collect::<Vec<_>>(),
+        "executing command"
     );
-    cfg_if! {
-        if #[cfg(any(test, feature = "testing"))] {
-            if USE_MOCKS.load(Ordering::SeqCst) {
-                mock_inner::internal_exec(cmd)
-            } else {
-                inner::internal_exec(cmd)
-            }
-        } else {
-            inner::internal_exec(cmd)
+    #[cfg(any(test, feature = "testing"))]
+    {
+        if USE_MOCKS.load(Ordering::SeqCst) {
+            return mock_inner::internal_exec(cmd);
         }
     }
+    inner::internal_exec(cmd)
 }
 
 pub fn exec_spawn(
     cmd: &mut std::process::Command,
 ) -> Result<std::process::Child, CommandExecutionError> {
-    log::trace!(
-        "Executing command {:?} with args {:?}",
-        cmd.get_program(),
-        cmd.get_args()
+    tracing::trace!(
+        program = ?cmd.get_program(),
+        args = ?cmd.get_args().collect::<Vec<_>>(),
+        "spawning command"
     );
-    cfg_if! {
-        if #[cfg(any(test, feature = "testing"))] {
-            if USE_MOCKS.load(Ordering::SeqCst) {
-                mock_inner::internal_exec_spawn(cmd)
-            } else {
-                inner::internal_exec_spawn(cmd)
-            }
-        } else {
-            inner::internal_exec_spawn(cmd)
+    #[cfg(any(test, feature = "testing"))]
+    {
+        if USE_MOCKS.load(Ordering::SeqCst) {
+            return mock_inner::internal_exec_spawn(cmd);
         }
     }
-}
-
-lazy_static! {
-    pub static ref MTX: Mutex<()> = Mutex::new(());
+    inner::internal_exec_spawn(cmd)
 }

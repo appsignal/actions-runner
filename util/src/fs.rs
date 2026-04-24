@@ -7,7 +7,7 @@ pub fn copy_sparse(from: impl AsRef<Utf8Path>, to: impl AsRef<Utf8Path>) -> std:
     let to = to.as_ref();
 
     exec(Command::new("cp").args(["--sparse=always", from.as_str(), to.as_str()]))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
 
     Ok(())
 }
@@ -15,8 +15,7 @@ pub fn copy_sparse(from: impl AsRef<Utf8Path>, to: impl AsRef<Utf8Path>) -> std:
 pub fn rm_rf(path: impl AsRef<Utf8Path>) -> std::io::Result<()> {
     let path = path.as_ref();
 
-    exec(Command::new("rm").args(["-rf", path.as_str()]))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    exec(Command::new("rm").args(["-rf", path.as_str()])).map_err(std::io::Error::other)?;
 
     Ok(())
 }
@@ -24,8 +23,7 @@ pub fn rm_rf(path: impl AsRef<Utf8Path>) -> std::io::Result<()> {
 pub fn mkdir_p(path: impl AsRef<Utf8Path>) -> std::io::Result<()> {
     let path = path.as_ref();
 
-    exec(Command::new("mkdir").args(["-p", path.as_str()]))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    exec(Command::new("mkdir").args(["-p", path.as_str()])).map_err(std::io::Error::other)?;
 
     Ok(())
 }
@@ -33,8 +31,7 @@ pub fn mkdir_p(path: impl AsRef<Utf8Path>) -> std::io::Result<()> {
 pub fn mkfs_ext4(path: impl AsRef<Utf8Path>) -> std::io::Result<()> {
     let path = path.as_ref();
 
-    exec(Command::new("mkfs.ext4").arg(path.as_str()))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    exec(Command::new("mkfs.ext4").arg(path.as_str())).map_err(std::io::Error::other)?;
 
     Ok(())
 }
@@ -49,7 +46,7 @@ pub fn dd(path: impl AsRef<Utf8Path>, size_in_mb: u64) -> std::io::Result<()> {
         "bs=1M",
         &format!("count={}", size_in_mb),
     ]))
-    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    .map_err(std::io::Error::other)?;
 
     Ok(())
 }
@@ -59,21 +56,18 @@ pub fn du(path: impl AsRef<Utf8Path>) -> std::io::Result<u64> {
 
     let du_output = exec(Command::new("du").args([&path.as_str()]))
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
 
     let size = du_output
         .split_whitespace()
         .next()
-        .ok_or(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("Couldn not split '{:?}' into number and rest", du_output),
-        ))?;
+        .ok_or(std::io::Error::other(format!(
+            "Couldn not split '{:?}' into number and rest",
+            du_output
+        )))?;
 
     size.parse().map_err(|e| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("Could not parse '{:?}' to number: {}", size, e),
-        )
+        std::io::Error::other(format!("Could not parse '{:?}' to number: {}", size, e))
     })
 }
 

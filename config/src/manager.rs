@@ -4,12 +4,19 @@ use serde::Deserialize;
 use toml;
 
 #[derive(Deserialize, Debug, Clone)]
+pub struct LvmConfig {
+    pub volume_group: String,
+    pub thin_pool: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
 pub struct ManagerConfig {
     pub network_interface: String,
     pub run_path: Utf8PathBuf,
     pub roles: Vec<Role>,
     pub github_org: String,
     pub github_pat: String,
+    pub lvm: LvmConfig,
 }
 
 impl ManagerConfig {
@@ -18,10 +25,6 @@ impl ManagerConfig {
         let config = toml::from_str(&config_str)?;
         Ok(config)
     }
-}
-
-const fn _default_overlay_size() -> u32 {
-    10 // 10GB
 }
 
 const fn _default_max_cache_pct() -> u8 {
@@ -37,11 +40,9 @@ pub struct Role {
     pub cpus: u32,
     pub memory_size: u32,
     pub cache_size: u32,
-    #[serde(default = "_default_overlay_size")]
-    pub overlay_size: u32,
     pub instance_count: u8,
     #[serde(default)]
-    pub cache_paths: Vec<Utf8PathBuf>,
+    pub cache_paths: Vec<String>,
     #[serde(default = "_default_max_cache_pct")]
     pub max_cache_pct: u8,
     #[serde(default)]
@@ -50,7 +51,7 @@ pub struct Role {
 
 impl Role {
     pub fn slug(&self) -> String {
-        self.name.to_lowercase()
+        self.name.to_lowercase().replace([' ', '_'], "-")
     }
 }
 
@@ -64,6 +65,7 @@ mod tests {
             .expect("Could not load config");
 
         assert_eq!(&config.network_interface, "eth0");
+        assert_eq!(&config.lvm.volume_group, "runners");
     }
 
     mod helpers {
