@@ -28,7 +28,7 @@ jobs:
         run: |
           TAG=${{ github.event.inputs.tag || github.ref_name }}
           ARCHIVE="actions-runner_v${TAG}_x86_64-unknown-linux-musl.zip"
-          zip "$ARCHIVE" target/x86_64-unknown-linux-musl/release/actions-runner
+          zip "$ARCHIVE" bin/target/x86_64-unknown-linux-musl/release/actions-runner
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256sum"
           gh release upload "$TAG" "$ARCHIVE" "${ARCHIVE}.sha256sum" --clobber
         env:
