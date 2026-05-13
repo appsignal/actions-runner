@@ -15,12 +15,21 @@ jobs:
       - uses: actions/checkout@master
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
-      - name: Compile and release
+      - name: Compile
         uses: rust-build/rust-build.action@v1.4.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SRC_DIR: "bin"
           TOOLCHAIN_VERSION: "1.88.0"
-          GITHUB_REF: refs/tags/${{ github.event.inputs.tag || github.ref_name }}
         with:
           RUSTTARGET: x86_64-unknown-linux-musl
+          UPLOAD_MODE: none
+      - name: Package and upload
+        run: |
+          TAG=${{ github.event.inputs.tag || github.ref_name }}
+          ARCHIVE="actions-runner_v${TAG}_x86_64-unknown-linux-musl.zip"
+          zip "$ARCHIVE" target/x86_64-unknown-linux-musl/release/actions-runner
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256sum"
+          gh release upload "$TAG" "$ARCHIVE" "${ARCHIVE}.sha256sum" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
