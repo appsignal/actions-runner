@@ -1,6 +1,11 @@
 on:
   release:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and upload assets for"
+        required: true
 
 jobs:
   release:
@@ -8,11 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
       - name: Compile and release
         uses: rust-build/rust-build.action@v1.4.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SRC_DIR: "bin"
-          TOOLCHAIN_VERSION: "1.74.0"
+          TOOLCHAIN_VERSION: "1.88.0"
         with:
           RUSTTARGET: x86_64-unknown-linux-musl
