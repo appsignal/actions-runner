@@ -22,7 +22,8 @@ pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<(
         &config.run_path,
         role,
         idx as u8,
-    );
+    )
+    .with_lvm(&config.lvm);
 
     instance.setup().map_err(|e| {
         error!(role = %role.name, idx, error = %e, "slot setup failed");
