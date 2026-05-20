@@ -78,12 +78,22 @@ pub fn lvcreate_snapshot(vg: &str, source: &str, name: &str) -> Result<()> {
     if !status.success() {
         anyhow::bail!("lvcreate snapshot failed: {}/{} -> {}", vg, source, name);
     }
-    info!(vg, source, name, "snapshot created");
-    // Wait for udev to process the new device node before returning so callers
-    // can immediately open or mount the device path under /dev.
+    // Thin snapshots are created with the "skip activation" flag (k) set by
+    // default. Plain lvchange -ay silently respects that flag and does nothing.
+    // -K (--ignoreactivationskip) overrides it, creating the DM device so the
+    // /dev/<vg>/<lv> node is present before we return.
+    let status = Command::new("lvchange")
+        .args(["-K", "-ay", &format!("{}/{}", vg, name)])
+        .status()
+        .context("failed to run lvchange -K -ay")?;
+    if !status.success() {
+        anyhow::bail!("lvchange -K -ay failed for {}/{}", vg, name);
+    }
+    // Wait for udev to finish creating the /dev/<vg>/<lv> symlink.
     let _ = Command::new("udevadm")
         .args(["settle", "--timeout=5"])
         .status();
+    info!(vg, source, name, "snapshot created and activated");
     Ok(())
 }
 
