@@ -79,6 +79,11 @@ pub fn lvcreate_snapshot(vg: &str, source: &str, name: &str) -> Result<()> {
         anyhow::bail!("lvcreate snapshot failed: {}/{} -> {}", vg, source, name);
     }
     info!(vg, source, name, "snapshot created");
+    // Wait for udev to process the new device node before returning so callers
+    // can immediately open or mount the device path under /dev.
+    let _ = Command::new("udevadm")
+        .args(["settle", "--timeout=5"])
+        .status();
     Ok(())
 }
 
