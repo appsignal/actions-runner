@@ -8,7 +8,7 @@ use config::{
 };
 use github::GitHub;
 use rand::distributions::{Alphanumeric, DistString};
-use std::{fs, os::unix::process::CommandExt, path::PathBuf, process::Command};
+use std::{fs, io::Read, os::unix::process::CommandExt, path::PathBuf, process::Command};
 use tracing::{debug, info, instrument, warn};
 use util::mount;
 
@@ -91,6 +91,26 @@ impl Instance {
 
     pub fn pid_file_path(&self) -> PathBuf {
         self.work_dir.as_std_path().join("firecracker.pid")
+    }
+
+    pub fn console_log_path(&self) -> Utf8PathBuf {
+        self.work_dir.join("console.log")
+    }
+
+    /// Return the last `n` lines of the VM serial console log, or an empty string if unavailable.
+    pub fn read_console_tail(&self, n: usize) -> String {
+        let path = self.console_log_path();
+        let mut file = match fs::File::open(&path) {
+            Ok(f) => f,
+            Err(_) => return String::new(),
+        };
+        let mut content = String::new();
+        if file.read_to_string(&mut content).is_err() {
+            return String::new();
+        }
+        let lines: Vec<&str> = content.lines().collect();
+        let start = lines.len().saturating_sub(n);
+        lines[start..].join("\n")
     }
 
     #[instrument(skip(self), fields(role = %self.role, idx = self.idx))]
@@ -208,12 +228,13 @@ impl Instance {
         self.setup_run()?;
 
         debug!(role = %self.role, idx = self.idx, "spawning Firecracker");
+        let console_file = fs::File::create(self.console_log_path())?;
         let child = unsafe {
             Command::new("firecracker")
                 .args(["--config-file", "config.json", "--no-api"])
                 .current_dir(&self.work_dir)
                 .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
+                .stdout(console_file)
                 .stderr(std::process::Stdio::piped())
                 .pre_exec(|| {
                     if libc::setsid() == -1 {

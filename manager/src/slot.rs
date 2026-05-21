@@ -4,7 +4,7 @@ use opentelemetry::KeyValue;
 use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tracing::{error, info, instrument, warn};
 
 use crate::{instance::Instance, network::NetworkAllocation};
@@ -75,6 +75,7 @@ pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<(
                     error!(role = %role.name, idx, pid, error = %e, "failed to write PID file");
                 }
 
+                let cycle_start = Instant::now();
                 let status = {
                     let _running = tracing::info_span!(
                         "vm_running",
@@ -86,6 +87,7 @@ pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<(
                     .entered();
                     child.wait()
                 };
+                let cycle_secs = cycle_start.elapsed().as_secs();
 
                 match status {
                     Ok(status) => {
@@ -99,6 +101,7 @@ pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<(
                             idx,
                             cycle = cycle_n,
                             exit_code = status.code(),
+                            duration_secs = cycle_secs,
                             result = result_str,
                             "Firecracker exited"
                         );
@@ -109,8 +112,24 @@ pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<(
                                     idx,
                                     cycle = cycle_n,
                                     exit_code = status.code(),
-                                    "firecracker: {}", line
+                                    "firecracker stderr: {}", line
                                 );
+                            }
+                        }
+                        // Log console tail for short cycles — these indicate a failure inside the VM
+                        if cycle_secs < 60 {
+                            let tail = instance.read_console_tail(40);
+                            if !tail.is_empty() {
+                                warn!(
+                                    role = %role.name,
+                                    idx,
+                                    cycle = cycle_n,
+                                    duration_secs = cycle_secs,
+                                    "VM cycled quickly — console tail follows"
+                                );
+                                for line in tail.lines() {
+                                    warn!(role = %role.name, idx, cycle = cycle_n, "console: {}", line);
+                                }
                             }
                         }
                         jobs_counter.add(
