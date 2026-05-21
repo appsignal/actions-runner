@@ -33,7 +33,10 @@ MACAddress={guest_mac}
 [Network]
 Address={client_ip}/30
 Gateway={host_ip}
+DNS=1.1.1.1
 "#;
+
+const RESOLV_CONF: &str = "nameserver 1.1.1.1\noptions use-vc\n";
 
 /// Inject runner.service, eth.network, and service symlink into a mounted rootfs.
 #[instrument(skip(network), fields(mount_point = %mount_point, runner_name, role))]
@@ -47,6 +50,7 @@ pub fn inject_config(
 ) -> Result<()> {
     inject_runner_service(mount_point, github_org, github_token, runner_name, labels)?;
     inject_network_config(mount_point, network)?;
+    inject_resolv_conf(mount_point)?;
     enable_runner_service(mount_point)?;
     Ok(())
 }
@@ -91,6 +95,14 @@ fn inject_network_config(mount_point: &Utf8Path, network: &NetworkAllocation) ->
         .with_context(|| format!("failed to write {}", network_path))?;
 
     info!(path = %network_path, "injected eth.network");
+    Ok(())
+}
+
+fn inject_resolv_conf(mount_point: &Utf8Path) -> Result<()> {
+    let resolv_path = mount_point.join("etc/resolv.conf");
+    fs::write(&resolv_path, RESOLV_CONF)
+        .with_context(|| format!("failed to write {}", resolv_path))?;
+    info!(path = %resolv_path, "injected resolv.conf");
     Ok(())
 }
 
