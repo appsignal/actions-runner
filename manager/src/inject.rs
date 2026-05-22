@@ -23,7 +23,9 @@ KillSignal=SIGTERM
 TimeoutStopSec=5min
 WorkingDirectory=/home/runner
 User=runner
-Restart=never
+Restart=no
+StandardOutput=journal+console
+StandardError=journal+console
 ExecStopPost=+/usr/sbin/reboot
 "#;
 
