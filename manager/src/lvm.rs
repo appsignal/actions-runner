@@ -219,10 +219,17 @@ pub fn reconcile(config: &ManagerConfig) -> Result<()> {
     let existing_names: HashMap<&str, &LvInfo> =
         existing.iter().map(|lv| (lv.name.as_str(), lv)).collect();
 
-    // Ensure cache-empty exists
+    // Ensure cache-empty exists. Size it to the largest cache_size across all
+    // roles so any role can snapshot from it and get a sufficient disk.
     if !existing_names.contains_key("cache-empty") {
-        info!(vg, "creating cache-empty LV");
-        lvcreate_thin(vg, pool, "cache-empty", 1)?;
+        let cache_size_gib = config
+            .roles
+            .iter()
+            .map(|r| r.cache_size as u64)
+            .max()
+            .unwrap_or(1);
+        info!(vg, cache_size_gib, "creating cache-empty LV");
+        lvcreate_thin(vg, pool, "cache-empty", cache_size_gib)?;
         mkfs_ext4(&format!("/dev/{}/cache-empty", vg))?;
     }
 
@@ -254,6 +261,10 @@ pub fn reconcile(config: &ManagerConfig) -> Result<()> {
         }
         for prefix in ["rootfs-", "cache-"] {
             if let Some(rest) = lv.name.strip_prefix(prefix) {
+                // cache-empty is the shared template LV — never remove it here.
+                if lv.name == "cache-empty" {
+                    continue;
+                }
                 let role_slug = rest.rsplit_once('-').map(|(r, _)| r).unwrap_or(rest);
                 if !active_roles.contains(role_slug) {
                     lvremove(vg, &lv.name)?;
