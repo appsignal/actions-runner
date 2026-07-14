@@ -188,9 +188,21 @@ impl Instance {
         let rootfs_lv = format!("rootfs-{}-{}", self.role, self.idx);
         let base_lv = format!("base-{}", self.role);
 
+        // A mount leaked by a previous cycle (error between mount and unmount,
+        // or the whole manager getting SIGKILLed) keeps the rootfs LV open, so
+        // the lvremove/lvcreate below would fail on every retry — wedging this
+        // slot permanently. Clean it up first.
+        self.cleanup_stale_mount();
+
         // Remove stale snapshot and create fresh one from base
         let _ = lvm::lvremove(&self.lvm.volume_group, &rootfs_lv);
         lvm::lvcreate_snapshot(&self.lvm.volume_group, &base_lv, &rootfs_lv)?;
+
+        // Fetch the registration token before mounting: it is a network call
+        // and must not be able to fail while the rootfs is mounted.
+        let token = self.github.registration_token()?;
+        let runner_name = self.name();
+        let labels = self.labels();
 
         // Mount rootfs, inject config, unmount
         let mnt = Utf8PathBuf::from(self.work_dir.join("mnt").as_str());
@@ -199,21 +211,20 @@ impl Instance {
         let rootfs_device = self.rootfs_device_path();
         mount::mount_image(&rootfs_device, &mnt)?;
 
-        let token = self.github.registration_token()?;
-        let runner_name = self.name();
-        let labels = self.labels();
-
-        inject::inject_config(
+        let inject_result = inject::inject_config(
             &mnt,
             &self.github.org.clone(),
             &token,
             &runner_name,
             &labels,
             &self.network_allocation,
-        )?;
+        );
 
-        mount::unmount(&mnt)?;
+        // Always unmount, even when injection failed — see cleanup_stale_mount.
+        let unmount_result = mount::unmount(&mnt);
         let _ = fs::remove_dir(&mnt);
+        inject_result?;
+        unmount_result?;
 
         // Write Firecracker config.json
         let config_json = serde_json::to_string(&self.firecracker_config()?)?;
@@ -251,6 +262,21 @@ impl Instance {
 
     pub fn reset(&mut self) {
         // Nothing to reset in new model; slot loop handles retry
+    }
+
+    /// Unmount and remove this slot's `mnt` directory if a previous cycle
+    /// leaked it (error while mounted, or the manager was SIGKILLed). Mounts
+    /// are kernel state and survive process death; a held mount makes every
+    /// subsequent `lvremove`/`lvcreate_snapshot` for this slot fail with
+    /// "contains a filesystem in use".
+    pub fn cleanup_stale_mount(&self) {
+        let mnt = self.work_dir.join("mnt");
+        if mnt.as_std_path().exists() {
+            if mount::unmount(&mnt).is_ok() {
+                info!(role = %self.role, idx = self.idx, "unmounted stale rootfs mount");
+            }
+            let _ = fs::remove_dir(mnt.as_std_path());
+        }
     }
 
     #[instrument(skip(self), fields(role = %self.role, idx = self.idx))]
