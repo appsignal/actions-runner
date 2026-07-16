@@ -32,20 +32,40 @@ impl CacheDisk {
         Ok(())
     }
 
-    /// Check cache usage percentage. Uses df on the mounted LV device.
+    /// Check cache usage as a percentage of the LV's virtual size.
+    ///
+    /// The cache LV is only ever mounted inside the guest VM (as /dev/vdb),
+    /// never on the host — so `df` on the host cannot see its filesystem and
+    /// reports the filesystem containing the device *node* (devtmpfs, ~0%)
+    /// instead, meaning the clear threshold never fires. Read the thin LV's
+    /// `data_percent` via lvs, which the host can always see. It slightly
+    /// overestimates after guest-side deletes (thin blocks aren't returned
+    /// without discard), which errs on the side of clearing — fine for a cache.
     pub fn usage_pct(&self) -> Result<u8> {
-        let output = std::process::Command::new("df")
-            .args(["--output=pcent", &self.device_path()])
+        let output = std::process::Command::new("lvs")
+            .args([
+                "--noheadings",
+                "--options",
+                "data_percent",
+                &format!("{}/{}", self.volume_group, self.lv_name),
+            ])
             .output()?;
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        // Output: "Use%\n  42%\n"
-        let pct_str = stdout
-            .lines()
-            .nth(1)
-            .unwrap_or("0")
+        if !output.status.success() {
+            anyhow::bail!(
+                "lvs failed for {}/{}: {}",
+                self.volume_group,
+                self.lv_name,
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+        }
+        // Output: "  92.98" (some locales emit a comma decimal separator)
+        let raw = String::from_utf8_lossy(&output.stdout)
             .trim()
-            .trim_end_matches('%');
-        Ok(pct_str.parse().unwrap_or(0))
+            .replace(',', ".");
+        let pct: f64 = raw.parse().map_err(|e| {
+            anyhow::anyhow!("failed to parse lvs data_percent {:?}: {}", raw, e)
+        })?;
+        Ok(pct.round().clamp(0.0, 100.0) as u8)
     }
 
     /// Clear cache by removing and re-snapshotting from cache-empty.
