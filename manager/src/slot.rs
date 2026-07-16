@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{error, info, instrument, warn};
 
-use crate::{instance::Instance, network::NetworkAllocation};
+use crate::{instance::Instance, network::NetworkAllocation, shutdown};
 
 /// Run the per-slot loop for a given role and slot index.
 /// This function is intended to run in its own OS process or thread.
@@ -42,6 +42,11 @@ pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<(
     let mut cycle_n: u64 = 0;
 
     loop {
+        if shutdown::requested() {
+            info!(role = %role.name, idx, "shutdown requested, exiting boot loop");
+            break;
+        }
+
         let pid_file = instance.pid_file_path();
 
         // Graceful restart: if Firecracker is already running for this slot, reattach
@@ -53,7 +58,10 @@ pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<(
                     pid,
                     "Firecracker already running, reattaching"
                 );
+                // Register so the shutdown watcher can stop the reattached VM too.
+                shutdown::register_child(&role.slug(), idx, pid);
                 wait_for_pid(pid);
+                shutdown::unregister_child(&role.slug(), idx);
                 remove_pid_file(&pid_file);
                 // Fall through to next cycle after the job finishes
                 continue;
@@ -71,6 +79,7 @@ pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<(
         match instance.start() {
             Ok(mut child) => {
                 let pid = child.id();
+                shutdown::register_child(&role.slug(), idx, pid);
                 if let Err(e) = write_pid_file(&pid_file, pid) {
                     error!(role = %role.name, idx, pid, error = %e, "failed to write PID file");
                 }
@@ -154,11 +163,18 @@ pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<(
                     }
                 }
 
+                shutdown::unregister_child(&role.slug(), idx);
                 remove_pid_file(&pid_file);
             }
             Err(e) => {
                 error!(role = %role.name, idx, cycle = cycle_n, error = %e, "boot cycle failed");
-                std::thread::sleep(Duration::from_secs(20));
+                // Interruptible retry back-off so shutdown isn't delayed by up to 20s.
+                for _ in 0..20 {
+                    if shutdown::requested() {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_secs(1));
+                }
                 instance.reset();
                 continue;
             }
@@ -169,6 +185,12 @@ pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<(
             error!(role = %role.name, idx, error = %e, "cache clear failed");
         }
     }
+
+    // Shutdown path: make sure nothing from the last cycle is left behind that
+    // would wedge the slot on the next manager start.
+    instance.cleanup_stale_mount();
+    info!(role = %role.name, idx, "slot shut down cleanly");
+    Ok(())
 }
 
 fn read_child_stderr(child: &mut std::process::Child) -> String {

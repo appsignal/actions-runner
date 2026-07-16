@@ -9,6 +9,7 @@ pub mod inject;
 pub mod instance;
 pub mod lvm;
 pub mod network;
+pub mod shutdown;
 pub mod slot;
 
 use network::Forwarding;
@@ -38,6 +39,10 @@ impl Manager {
             lvm::reconcile(&self.config)?;
         }
 
+        // Install the SIGTERM/SIGINT handler and VM-killing watcher before any
+        // slot exists, so an early stop is handled gracefully too.
+        shutdown::install()?;
+
         let config = Arc::new(self.config.clone());
         let mut handles = Vec::new();
 
@@ -63,30 +68,15 @@ impl Manager {
 
         info!(slots = handles.len(), "all slot threads started");
 
-        // Install SIGINT/SIGTERM handler
-        setup_signal_handler()?;
-
-        // Join all slot threads (they run forever unless killed)
+        // Join all slot threads. They run until a shutdown signal is received,
+        // at which point each slot tears down (unmount, PID file) and exits.
         for handle in handles {
             if let Err(e) = handle.join() {
                 warn!("slot thread panicked: {:?}", e);
             }
         }
 
-        info!("manager shutting down");
+        info!("all slots stopped, manager shutting down");
         Ok(())
     }
-}
-
-fn setup_signal_handler() -> Result<()> {
-    use nix::sys::signal::{sigaction, SaFlags, SigAction, SigHandler, SigSet, Signal};
-
-    // Install a no-op handler for SIGTERM and SIGINT so the process can shut down
-    // gracefully. Slot processes receive the signal via their own process group.
-    let action = SigAction::new(SigHandler::SigIgn, SaFlags::empty(), SigSet::empty());
-    unsafe {
-        sigaction(Signal::SIGTERM, &action)?;
-        sigaction(Signal::SIGINT, &action)?;
-    }
-    Ok(())
 }
