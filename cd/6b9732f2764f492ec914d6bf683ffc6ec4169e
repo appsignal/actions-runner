@@ -1,0 +1,23 @@
+SPEC.md
+  s_760a60a8c3b574::t_4ae236dff940e9 171
+docs/building-root-image.md
+  s_760a60a8c3b574::t_e70eb4234eb525 97
+manager/src/lvm.rs
+  s_760a60a8c3b574::t_b2c8f65c6e4de4 128-142,150-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cd6b9732f2764f492ec914d6bf683ffc6ec4169e",
+  "prompts": {},
+  "sessions": {
+    "s_760a60a8c3b574": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b8abe7e-0339-4800-bb42-aabba449bf45",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Robert Beekman <robert@matsimitsu.nl>"
+    }
+  }
+}
