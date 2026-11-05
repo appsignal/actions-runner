@@ -125,6 +125,21 @@ pub fn lv_tag(vg: &str, lv: &str, tag: &str) -> Result<()> {
 }
 
 /// Provision an image file onto an LV using dd.
+///
+/// Writes sparsely: all-zero blocks are skipped instead of written, so the
+/// image's free space stays *unmapped* in the thin pool. Every per-slot rootfs
+/// is a thin snapshot of this LV, and a write into a block that is mapped in
+/// the origin first copies the whole pool chunk (read + write) before applying
+/// the guest's write. With a fully written base, every write a guest makes to
+/// "free" filesystem space paid that copy for blocks that held only zeros;
+/// with unmapped free space the write simply allocates a fresh chunk.
+///
+/// This relies on the LV being freshly created: skipped blocks are never
+/// written, so they read back as zeros only because nothing was there before.
+/// `reconcile_base_lv` always removes the old base LV and calls `lvcreate_thin`
+/// immediately before this. `bs=64K` matches the pool's chunk size so a chunk
+/// is skipped only when it is entirely zero; larger blocks would write chunks
+/// that are mostly zero.
 #[instrument(fields(vg, lv, image_path = %image_path.display()))]
 pub fn provision_image(image_path: &Path, vg: &str, lv: &str) -> Result<()> {
     info!(vg, lv, image = %image_path.display(), "provisioning image onto LV");
@@ -132,7 +147,8 @@ pub fn provision_image(image_path: &Path, vg: &str, lv: &str) -> Result<()> {
         .args([
             &format!("if={}", image_path.display()),
             &format!("of=/dev/{}/{}", vg, lv),
-            "bs=4M",
+            "bs=64K",
+            "conv=sparse",
             "status=progress",
         ])
         .status()

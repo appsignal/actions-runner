@@ -168,7 +168,7 @@ lvcreate -V {size}G --thin -n {name} {vg}/{pool}
 lvchange --addtag checksum={sha256} {vg}/{lv}
 
 # Provision image onto base LV
-dd if={image_path} of=/dev/{vg}/{lv} bs=4M
+dd if={image_path} of=/dev/{vg}/{lv} bs=64K conv=sparse   # fresh LV only; keeps free space unmapped
 
 # Format cache-empty
 mkfs.ext4 /dev/{vg}/cache-empty
