@@ -94,7 +94,7 @@ Once built, the image is written to the LVM base logical volume for its role. Th
 Write it with `dd` for a straightforward raw copy:
 
 ```sh
-dd if=ubuntu-22.04-runner.img of=/dev/runners/base-default bs=4M status=progress
+dd if=ubuntu-22.04-runner.img of=/dev/runners/base-default bs=64K conv=sparse status=progress
 ```
 
 If the image is updated (new runner version, updated packages), replace the file and restart the manager. On startup the manager checksums the image against what is stored as an LVM tag on the base LV and reprovisions if they differ.
