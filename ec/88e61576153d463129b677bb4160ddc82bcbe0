@@ -1,0 +1,23 @@
+bin/src/main.rs
+  s_fa81b1f020b085::t_2e1c46bc031360 61,64,66-70
+manager/src/lib.rs
+  s_fa81b1f020b085::t_20d02bd59f60ba 2-3,50-56,60,65,88-151
+manager/src/slot.rs
+  s_fa81b1f020b085::t_56dd1b6f5c1f5e 12-14,16-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ec88e61576153d463129b677bb4160ddc82bcbe0",
+  "prompts": {},
+  "sessions": {
+    "s_fa81b1f020b085": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35f3d727-cc87-4660-842e-e0b1c82147dc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Robert Beekman <robert@matsimitsu.nl>"
+    }
+  }
+}
