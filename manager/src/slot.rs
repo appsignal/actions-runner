@@ -9,11 +9,13 @@ use tracing::{error, info, instrument, warn};
 
 use crate::{instance::Instance, network::NetworkAllocation, shutdown};
 
-/// Run the per-slot loop for a given role and slot index.
+/// Run the per-slot loop for a given role and slot index. `idx` numbers the slot
+/// within its role (LV and runner names); `net_idx` numbers it across all roles
+/// on the host (tap device and subnet), see `network_indices`.
 /// This function is intended to run in its own OS process or thread.
-#[instrument(skip(config), fields(role = %role.name, idx))]
-pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize) -> Result<()> {
-    let network_allocation = NetworkAllocation::new(&config.network_interface, idx as u8);
+#[instrument(skip(config), fields(role = %role.name, idx, net_idx))]
+pub fn run_slot(config: Arc<ManagerConfig>, role: &Role, idx: usize, net_idx: u8) -> Result<()> {
+    let network_allocation = NetworkAllocation::new(&config.network_interface, net_idx);
     let github = github::GitHub::new(&config.github_org, &config.github_pat);
 
     let mut instance = Instance::new(
