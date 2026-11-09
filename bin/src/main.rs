@@ -58,13 +58,16 @@ fn main() -> Result<()> {
         }
         Commands::Slot(args) => {
             let config = ManagerConfig::from_file(&args.config)?;
-            let role = config
+            let role_pos = config
                 .roles
                 .iter()
-                .find(|r| r.name == args.role || r.slug() == args.role)
-                .cloned()
+                .position(|r| r.name == args.role || r.slug() == args.role)
                 .ok_or_else(|| anyhow::anyhow!("role '{}' not found in config", args.role))?;
-            slot::run_slot(std::sync::Arc::new(config), &role, args.idx)
+            let role = config.roles[role_pos].clone();
+            let net_idx = *manager::network_indices(&config.roles)?[role_pos]
+                .get(args.idx)
+                .ok_or_else(|| anyhow::anyhow!("role '{}' has no slot {}", args.role, args.idx))?;
+            slot::run_slot(std::sync::Arc::new(config), &role, args.idx, net_idx)
         }
     }
 }
